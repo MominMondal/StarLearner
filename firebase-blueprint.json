@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "StudentUser": {
+      "title": "StudentUser",
+      "description": "Student user profile containing class level and progress stats",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Unique Firebase user ID" },
+        "displayName": { "type": "string", "description": "Student display name" },
+        "email": { "type": "string", "description": "Account email" },
+        "selectedClass": { "type": "integer", "description": "Selected primary class level (1, 2, 3, or 4)" },
+        "avatarEmoji": { "type": "string", "description": "Avatar character emoji" },
+        "stars": { "type": "integer", "description": "Total earned stars" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of account creation" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" }
+      },
+      "required": ["userId", "displayName", "selectedClass"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/StudentUser" },
+      "description": "Student user records keyed by user ID"
+    }
+  }
+}

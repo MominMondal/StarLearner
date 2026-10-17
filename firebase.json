@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-android-starlear-531e4346-1c3d-4df1-89a8-bf7e719ecfcd",
+      "rules": "firestore.rules"
+    }
+  ]
+}
