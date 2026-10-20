@@ -737,122 +737,150 @@ private fun QuizSummaryScreen(
     onDone: () -> Unit
 ) {
     val percentage = ((score.toFloat() / total) * 100).toInt()
+    val isPerfectScore = (percentage == 100 && total > 0)
+    var showConfetti by remember { mutableStateOf(isPerfectScore) }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("quiz_summary_screen"),
-        color = Color(0xFFF8FAFC)
-    ) {
-        Column(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .testTag("quiz_summary_screen"),
+            color = Color(0xFFF8FAFC)
         ) {
-            // Trophy / Star burst badge
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(110.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(AmberGlow, TertiaryAmber)
-                        )
-                    ),
-                contentAlignment = Alignment.Center
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = if (percentage >= 80) "🏆" else if (percentage >= 50) "🌟" else "💪",
-                    fontSize = 54.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = if (percentage == 100) "Perfect Score!" else if (percentage >= 70) "Fantastic Work!" else "Good Effort!",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF0F172A),
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "You scored $score out of $total questions correctly ($percentage%)",
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF64748B),
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Stars reward pill
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Trophy / Star burst badge
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(AmberGlow, TertiaryAmber)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Stars Won",
-                        tint = TertiaryAmber,
-                        modifier = Modifier.size(30.dp)
+                    Text(
+                        text = if (percentage == 100) "👑" else if (percentage >= 80) "🏆" else if (percentage >= 50) "🌟" else "💪",
+                        fontSize = 54.sp
                     )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = if (percentage == 100) "Perfect Score! 🌟" else if (percentage >= 70) "Fantastic Work!" else "Good Effort!",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF0F172A),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "You scored $score out of $total questions correctly ($percentage%)",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color(0xFF64748B),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Stars reward pill
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Stars Won",
+                            tint = TertiaryAmber,
+                            modifier = Modifier.size(30.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "+$starsEarned Stars Earned!",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF92400E)
+                            )
+                            Text(
+                                text = "Difficulty: ${difficulty.label} (${difficulty.icon}) • ×${difficulty.starsMultiplier}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB45309)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Action buttons
+                Button(
+                    onClick = onDone,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("quiz_finish_button"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                ) {
+                    Text("Return to Dashboard", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = onPlayAgain,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("quiz_retry_button"),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = "+$starsEarned Stars Earned!",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF92400E)
-                        )
-                        Text(
-                            text = "Difficulty: ${difficulty.label} (${difficulty.icon}) • ×${difficulty.starsMultiplier}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFB45309)
-                        )
+                    Text("Try Again", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+
+                if (isPerfectScore) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = { showConfetti = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("quiz_replay_confetti_button"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFB45309))
+                    ) {
+                        Text("Replay Celebration 🎊", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(36.dp))
-
-            // Action buttons
-            Button(
-                onClick = onDone,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-                    .testTag("quiz_finish_button"),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-            ) {
-                Text("Return to Dashboard", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedButton(
-                onClick = onPlayAgain,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-                    .testTag("quiz_retry_button"),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Try Again", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
         }
+
+        ConfettiCelebrationOverlay(
+            isVisible = showConfetti,
+            title = "PERFECT SCORE! 100%",
+            subtitle = "Incredible work! You answered all $total questions without a single mistake!",
+            bonusText = "+$starsEarned Stars Earned! 🏆",
+            badgeEmoji = "👑",
+            onDismiss = { showConfetti = false }
+        )
     }
 }

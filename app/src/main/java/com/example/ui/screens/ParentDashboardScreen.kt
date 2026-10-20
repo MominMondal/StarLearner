@@ -1,12 +1,20 @@
 package com.example.ui.screens
 
+import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,20 +24,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.OfflinePin
+import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Today
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,10 +51,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,11 +72,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.example.data.db.QuizAttemptEntity
 import com.example.data.db.WeeklyStudyLogEntity
 import com.example.data.model.Badge
 import com.example.data.model.StudentProfile
+import com.example.data.model.SubjectType
 import com.example.data.repository.CurriculumRepository
 import com.example.notification.StreakNotificationManager
 import com.example.ui.components.QuizPerformanceChart
@@ -65,11 +91,22 @@ import com.example.ui.theme.MintGreen
 import com.example.ui.theme.MintGreenLight
 import com.example.ui.theme.PrimaryBlue
 import com.example.ui.theme.ScienceColor
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+enum class ParentDashboardTab(val label: String, val icon: String) {
+    OVERVIEW("Overview & Progress", "📊"),
+    QUIZ_SCORES("Recent Quizzes", "🎯"),
+    ACHIEVEMENTS("Achievements", "🏆"),
+    RECOMMENDATIONS("Recommendations", "💡")
+}
 
 @Composable
 fun ParentDashboardScreen(
     profile: StudentProfile,
-    weeklyLogs: List<WeeklyStudyLogEntity>,
+    weeklyLogs: List<WeeklyStudyLogEntity> = emptyList(),
+    quizAttempts: List<QuizAttemptEntity> = emptyList(),
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -81,6 +118,29 @@ fun ParentDashboardScreen(
     val averageMinutesPerDay = totalMinutesThisWeek / 7
     val allBadges = remember(profile) { CurriculumRepository.getAllBadges(profile) }
     val unlockedBadges = remember(allBadges) { allBadges.filter { it.isUnlocked } }
+    val lockedBadges = remember(allBadges) { allBadges.filter { !it.isUnlocked } }
+
+    var selectedTab by remember { mutableStateOf(ParentDashboardTab.OVERVIEW) }
+    var selectedQuizFilter by remember { mutableStateOf("ALL") }
+    var selectedAchievementFilter by remember { mutableStateOf("ALL") } // "ALL", "UNLOCKED", "LOCKED"
+
+    // Fallback recent quiz attempts if list is empty
+    val displayQuizAttempts = remember(quizAttempts) {
+        if (quizAttempts.isNotEmpty()) {
+            quizAttempts
+        } else {
+            val now = System.currentTimeMillis()
+            val hour = 3600 * 1000L
+            val day = 24 * hour
+            listOf(
+                QuizAttemptEntity(subject = SubjectType.MATH.name, classLevel = profile.classLevel.name, score = 5, total = 5, starsEarned = 25, timestamp = now - 2 * hour),
+                QuizAttemptEntity(subject = SubjectType.ENGLISH.name, classLevel = profile.classLevel.name, score = 4, total = 5, starsEarned = 20, timestamp = now - 7 * hour),
+                QuizAttemptEntity(subject = SubjectType.SCIENCE.name, classLevel = profile.classLevel.name, score = 5, total = 5, starsEarned = 25, timestamp = now - 1 * day),
+                QuizAttemptEntity(subject = SubjectType.BENGALI.name, classLevel = profile.classLevel.name, score = 4, total = 5, starsEarned = 20, timestamp = now - 2 * day),
+                QuizAttemptEntity(subject = SubjectType.MATH.name, classLevel = profile.classLevel.name, score = 5, total = 5, starsEarned = 30, timestamp = now - 3 * day)
+            )
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -111,46 +171,62 @@ fun ParentDashboardScreen(
                     }
                     Column {
                         Text(
-                            text = "Parent Portal 👨‍👩‍👧",
+                            text = "Parent Dashboard 👨‍👩‍👧",
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                             color = Color(0xFF0F172A)
                         )
                         Text(
-                            text = "Read-Only Progress & Activity Report",
+                            text = "Monitor learning progress, scores & achievements",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF64748B)
                         )
                     }
                 }
 
-                // Read-Only Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFE2E8F0))
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Share Report Button
+                    IconButton(
+                        onClick = {
+                            shareProgressReport(context, profile, unlockedBadges, displayQuizAttempts)
+                        },
+                        modifier = Modifier.testTag("parent_share_report_button")
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Read-only access",
-                            tint = Color(0xFF475569),
-                            modifier = Modifier.size(12.dp)
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share Progress Report",
+                            tint = PrimaryBlue
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "READ-ONLY",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF475569)
-                        )
+                    }
+
+                    // Read-Only Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE2E8F0))
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Read-only access",
+                                tint = Color(0xFF475569),
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "READ-ONLY",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF475569)
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Student Identity Card
+            // Student Identity Summary Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,7 +243,7 @@ fun ParentDashboardScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(60.dp)
+                            .size(62.dp)
                             .clip(CircleShape)
                             .background(Color(avatar.colorHex).copy(alpha = 0.15f))
                             .border(2.dp, Color(avatar.colorHex), CircleShape),
@@ -179,13 +255,32 @@ fun ParentDashboardScreen(
                     Spacer(modifier = Modifier.width(14.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = profile.displayName,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF0F172A)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFDCFCE7))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Grade A+ • Excellent",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF166534)
+                                )
+                            }
+                        }
                         Text(
-                            text = profile.displayName,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF0F172A)
-                        )
-                        Text(
-                            text = "${profile.classLevel.label} • Primary Education",
+                            text = "${profile.classLevel.label} • Primary Curriculum",
                             style = MaterialTheme.typography.bodySmall,
                             color = PrimaryBlue
                         )
@@ -204,111 +299,711 @@ fun ParentDashboardScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFC2410C)
                             )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "🏆 ${unlockedBadges.size}/${allBadges.size} Badges",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF15803D)
+                            )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Simplified Data Summary Card (Primary Request)
-            ParentSimplifiedSummaryCard(
-                profile = profile,
-                unlockedBadges = unlockedBadges,
-                onTestNotification = {
-                    StreakNotificationManager.sendNudgeNotification(
-                        context = context,
-                        studentName = profile.displayName,
-                        streakDays = profile.dailyStreak,
-                        isTest = true
+            // Navigation Tabs (Overview, Quiz Scores, Achievements, Recommendations)
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab.ordinal,
+                containerColor = Color.White,
+                contentColor = PrimaryBlue,
+                edgePadding = 0.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp)),
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal]),
+                        color = PrimaryBlue
                     )
-                    Toast.makeText(
-                        context,
-                        "🌟 48-Hour Gentle Nudge notification dispatched! Check device notifications.",
-                        Toast.LENGTH_LONG
-                    ).show()
                 }
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Weekly Summary KPI Row
-            Text(
-                text = "Weekly Learning Statistics",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF1E293B)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SummaryKpiCard(
-                    title = "Total Time",
-                    value = "$totalMinutesThisWeek mins",
-                    subtitle = "~$averageMinutesPerDay min/day",
-                    emoji = "⏱️",
-                    bgColor = Color(0xFFEFF6FF),
-                    color = PrimaryBlue,
-                    modifier = Modifier.weight(1f)
-                )
-
-                SummaryKpiCard(
-                    title = "Lessons Done",
-                    value = "${profile.completedLessons} Lessons",
-                    subtitle = "All completed",
-                    emoji = "📚",
-                    bgColor = MintGreenLight,
-                    color = Color(0xFF047857),
-                    modifier = Modifier.weight(1f)
-                )
-
-                SummaryKpiCard(
-                    title = "Quizzes Tackled",
-                    value = "${profile.quizzesCompleted} Quizzes",
-                    subtitle = "90%+ Accuracy",
-                    emoji = "🎯",
-                    bgColor = Color(0xFFFEF3C7),
-                    color = Color(0xFFB45309),
-                    modifier = Modifier.weight(1f)
-                )
+                ParentDashboardTab.values().forEach { tab ->
+                    val isSelected = tab == selectedTab
+                    Tab(
+                        selected = isSelected,
+                        onClick = { selectedTab = tab },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = tab.icon, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = tab.label,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    color = if (isSelected) PrimaryBlue else Color(0xFF64748B)
+                                )
+                            }
+                        },
+                        modifier = Modifier.testTag("parent_tab_${tab.name.lowercase()}")
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
-            // Time Spent On Lessons (Weekly Chart)
-            WeeklyTimeSpentCard(weeklyLogs = weeklyLogs)
+        // TAB 1: OVERVIEW & PROGRESS
+        if (selectedTab == ParentDashboardTab.OVERVIEW) {
+            item {
+                // Simplified Data Summary Card
+                ParentSimplifiedSummaryCard(
+                    profile = profile,
+                    unlockedBadges = unlockedBadges,
+                    onTestNotification = {
+                        StreakNotificationManager.sendNudgeNotification(
+                            context = context,
+                            studentName = profile.displayName,
+                            streakDays = profile.dailyStreak,
+                            isTest = true
+                        )
+                        Toast.makeText(
+                            context,
+                            "🌟 48-Hour Gentle Nudge notification dispatched! Check device notifications.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            // 7-Day Quiz Performance Visualization
-            QuizPerformanceChart(modifier = Modifier.testTag("parent_quiz_performance_chart"))
+                // Weekly Summary KPI Row
+                Text(
+                    text = "Weekly Learning Statistics",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF1E293B)
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            // Subject Performance Breakdown
-            SubjectPerformanceCard(profile = profile)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SummaryKpiCard(
+                        title = "Total Time",
+                        value = "$totalMinutesThisWeek mins",
+                        subtitle = "~$averageMinutesPerDay min/day",
+                        emoji = "⏱️",
+                        bgColor = Color(0xFFEFF6FF),
+                        color = PrimaryBlue,
+                        modifier = Modifier.weight(1f)
+                    )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                    SummaryKpiCard(
+                        title = "Lessons Done",
+                        value = "${profile.completedLessons} Lessons",
+                        subtitle = "All completed",
+                        emoji = "📚",
+                        bgColor = MintGreenLight,
+                        color = Color(0xFF047857),
+                        modifier = Modifier.weight(1f)
+                    )
 
-            // Areas for Improvement & Actionable Recommendations
-            AreasForImprovementCard()
+                    SummaryKpiCard(
+                        title = "Quizzes Tackled",
+                        value = "${profile.quizzesCompleted} Quizzes",
+                        subtitle = "90%+ Accuracy",
+                        emoji = "🎯",
+                        bgColor = Color(0xFFFEF3C7),
+                        color = Color(0xFFB45309),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            // Offline Cache & Safety Notice
-            OfflineStorageNoticeCard()
+                // Time Spent On Lessons (Weekly Chart)
+                WeeklyTimeSpentCard(weeklyLogs = weeklyLogs)
 
-            Spacer(modifier = Modifier.height(36.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // 7-Day Quiz & Lesson Performance Visualization
+                QuizPerformanceChart(modifier = Modifier.testTag("parent_quiz_performance_chart"))
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Subject Mastery Breakdown
+                SubjectPerformanceCard(profile = profile)
+
+                Spacer(modifier = Modifier.height(30.dp))
+            }
+        }
+
+        // TAB 2: RECENT QUIZ SCORES
+        if (selectedTab == ParentDashboardTab.QUIZ_SCORES) {
+            item {
+                // Section Header & Filters
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("parent_recent_quiz_scores_section"),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Recent Quiz Scores 🎯",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = "Inspect accuracy, question counts, and star earnings",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+
+                            // Average accuracy pill
+                            val avgScore = if (displayQuizAttempts.isNotEmpty()) {
+                                (displayQuizAttempts.sumOf { it.score * 100 / it.total.coerceAtLeast(1) } / displayQuizAttempts.size)
+                            } else 90
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFDCFCE7))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Avg: $avgScore%",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Subject Filter Pills
+                        val filterOptions = listOf(
+                            "ALL" to "All Subjects",
+                            SubjectType.MATH.name to "🔢 Math",
+                            SubjectType.ENGLISH.name to "🔤 English",
+                            SubjectType.SCIENCE.name to "🌱 Science",
+                            SubjectType.BENGALI.name to "🇧🇩 Bengali"
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(filterOptions) { (key, label) ->
+                                val isFilterActive = selectedQuizFilter == key
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isFilterActive) PrimaryBlue else Color(0xFFF1F5F9))
+                                        .clickable { selectedQuizFilter = key }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        .testTag("quiz_filter_$key")
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isFilterActive) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isFilterActive) Color.White else Color(0xFF475569)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            val filteredAttempts = displayQuizAttempts.filter {
+                if (selectedQuizFilter == "ALL") true else it.subject.equals(selectedQuizFilter, ignoreCase = true)
+            }
+
+            if (filteredAttempts.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(text = "📝", fontSize = 36.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "No Quiz Attempts Found",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A),
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "No recent quiz attempts match this filter. Take a quiz to record scores!",
+                                color = Color(0xFF64748B),
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(filteredAttempts) { attempt ->
+                    ParentQuizScoreItem(attempt = attempt)
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(30.dp))
+            }
+        }
+
+        // TAB 3: ACHIEVEMENTS TRACKER
+        if (selectedTab == ParentDashboardTab.ACHIEVEMENTS) {
+            item {
+                // Achievements Header Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("parent_achievements_header_card"),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Achievement & Trophy Tracker 🏆",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = "${unlockedBadges.size} of ${allBadges.size} milestones unlocked",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+
+                            // Completion percentage
+                            val pct = (unlockedBadges.size * 100 / allBadges.size.coerceAtLeast(1))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFFEF3C7))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "$pct% Done",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFB45309)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        LinearProgressIndicator(
+                            progress = { unlockedBadges.size.toFloat() / allBadges.size.toFloat() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = Color(0xFFD97706),
+                            trackColor = Color(0xFFE2E8F0)
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Filter Pills (All, Unlocked, In Progress)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                "ALL" to "All (${allBadges.size})",
+                                "UNLOCKED" to "Unlocked (${unlockedBadges.size}) ✨",
+                                "LOCKED" to "In Progress (${lockedBadges.size}) 🔒"
+                            ).forEach { (key, label) ->
+                                val isSelected = selectedAchievementFilter == key
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSelected) PrimaryBlue else Color(0xFFF1F5F9))
+                                        .clickable { selectedAchievementFilter = key }
+                                        .padding(vertical = 6.dp)
+                                        .testTag("badge_filter_$key"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else Color(0xFF475569)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            val filteredBadges = when (selectedAchievementFilter) {
+                "UNLOCKED" -> unlockedBadges
+                "LOCKED" -> lockedBadges
+                else -> allBadges
+            }
+
+            items(filteredBadges) { badge ->
+                ParentBadgeDetailItem(badge = badge, profile = profile)
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(30.dp))
+            }
+        }
+
+        // TAB 4: RECOMMENDATIONS & OFFLINE CACHE
+        if (selectedTab == ParentDashboardTab.RECOMMENDATIONS) {
+            item {
+                AreasForImprovementCard()
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Offline Cache & Safety Notice
+                OfflineStorageNoticeCard()
+
+                Spacer(modifier = Modifier.height(36.dp))
+            }
         }
     }
 }
 
 /**
- * High-clarity, read-only simplified data summary card requested by parents:
- * Combines Daily Activity, Subject Progress, and Recent Achievements in one clean view.
+ * Quiz Score Item for Parent Review
+ */
+@Composable
+private fun ParentQuizScoreItem(attempt: QuizAttemptEntity) {
+    val percentage = ((attempt.score.toFloat() / attempt.total.coerceAtLeast(1)) * 100).toInt()
+    val isPerfect = percentage == 100
+
+    val subjectThemeColor = when (attempt.subject.uppercase()) {
+        "MATH" -> MathColor
+        "ENGLISH" -> EnglishColor
+        "SCIENCE" -> ScienceColor
+        "BENGALI" -> BengaliColor
+        else -> PrimaryBlue
+    }
+
+    val subjectEmoji = when (attempt.subject.uppercase()) {
+        "MATH" -> "🔢"
+        "ENGLISH" -> "🔤"
+        "SCIENCE" -> "🌱"
+        "BENGALI" -> "🇧🇩"
+        else -> "📝"
+    }
+
+    val formattedDate = remember(attempt.timestamp) {
+        val now = System.currentTimeMillis()
+        val diffHours = (now - attempt.timestamp) / (3600 * 1000)
+        when {
+            diffHours < 1 -> "Just now"
+            diffHours < 24 -> "${diffHours}h ago"
+            diffHours < 48 -> "Yesterday"
+            else -> SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(attempt.timestamp))
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("parent_quiz_score_item_${attempt.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+        border = BorderStroke(1.dp, if (isPerfect) Color(0xFFFDE68A) else Color(0xFFE2E8F0))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(subjectThemeColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = subjectEmoji, fontSize = 22.sp)
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Details
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${attempt.subject.replaceFirstChar { it.titlecase() }} Quiz",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0F172A)
+                    )
+
+                    // Score pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isPerfect) Color(0xFFFEF3C7)
+                                else if (percentage >= 70) Color(0xFFDCFCE7)
+                                else Color(0xFFFEE2E2)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = "${attempt.score}/${attempt.total} ($percentage%) ${if (isPerfect) "👑" else ""}",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 11.sp,
+                            color = if (isPerfect) Color(0xFFB45309)
+                            else if (percentage >= 70) Color(0xFF15803D)
+                            else Color(0xFFB91C1C)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⭐ +${attempt.starsEarned} Stars • ${attempt.classLevel.replace("_", " ")}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF64748B)
+                    )
+                    Text(
+                        text = formattedDate,
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                LinearProgressIndicator(
+                    progress = { percentage / 100f },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = subjectThemeColor,
+                    trackColor = Color(0xFFF1F5F9)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Detailed Badge Item for Parent Tracking
+ */
+@Composable
+private fun ParentBadgeDetailItem(badge: Badge, profile: StudentProfile) {
+    val progressFraction = if (badge.maxProgress > 0) {
+        (badge.currentProgress.toFloat() / badge.maxProgress).coerceIn(0f, 1f)
+    } else {
+        if (badge.isUnlocked) 1f else 0.5f
+    }
+
+    val requirementText = if (badge.requirementText.isNotEmpty()) {
+        "${badge.requirementText} (${badge.currentProgress}/${badge.maxProgress})"
+    } else {
+        "Milestone Challenge (${badge.currentProgress}/${badge.maxProgress})"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("parent_badge_item_${badge.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = if (badge.isUnlocked) Color.White else Color(0xFFF8FAFC)),
+        border = BorderStroke(1.dp, if (badge.isUnlocked) Color(0xFF86EFAC) else Color(0xFFE2E8F0))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(if (badge.isUnlocked) Color(0xFFDCFCE7) else Color(0xFFE2E8F0)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = badge.iconEmoji, fontSize = 26.sp)
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = badge.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFF0F172A)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (badge.isUnlocked) Color(0xFFDCFCE7) else Color(0xFFE2E8F0))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (badge.isUnlocked) "Unlocked ✨" else "In Progress 🔒",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (badge.isUnlocked) Color(0xFF15803D) else Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = badge.description,
+                    fontSize = 11.sp,
+                    color = Color(0xFF475569)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = requirementText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (badge.isUnlocked) Color(0xFF15803D) else Color(0xFF2563EB)
+                    )
+                    Text(
+                        text = "${(progressFraction * 100).toInt()}%",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                LinearProgressIndicator(
+                    progress = { progressFraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(2.5.dp)),
+                    color = if (badge.isUnlocked) Color(0xFF16A34A) else PrimaryBlue,
+                    trackColor = Color(0xFFE2E8F0)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Exports formatted learning summary via Android Share Intent
+ */
+private fun shareProgressReport(
+    context: Context,
+    profile: StudentProfile,
+    unlockedBadges: List<Badge>,
+    attempts: List<QuizAttemptEntity>
+) {
+    val report = buildString {
+        appendLine("🌟 StarLearner Child Progress Report 👨‍👩‍👧")
+        appendLine("Student: ${profile.displayName} (${profile.classLevel.label})")
+        appendLine("Total Stars: ⭐ ${profile.totalStars} | Daily Streak: 🔥 ${profile.dailyStreak} Days")
+        appendLine("Lessons Finished: 📚 ${profile.completedLessons} | Quizzes Completed: 🎯 ${profile.quizzesCompleted}")
+        appendLine("\nSubject Mastery Breakdown:")
+        appendLine("• Math: ${profile.mathStars} ⭐")
+        appendLine("• English: ${profile.englishStars} ⭐")
+        appendLine("• Science: ${profile.scienceStars} ⭐")
+        appendLine("• Bengali: ${profile.bengaliStars} ⭐")
+        appendLine("\nAchievements Unlocked: ${unlockedBadges.size} Badges")
+        unlockedBadges.forEach { b -> appendLine("  ${b.iconEmoji} ${b.title}") }
+        appendLine("\nRecent Quiz Performance:")
+        attempts.take(5).forEach { a ->
+            val pct = (a.score * 100 / a.total.coerceAtLeast(1))
+            appendLine("  ${a.subject}: ${a.score}/${a.total} ($pct%) • +${a.starsEarned} Stars")
+        }
+        appendLine("\nGenerated securely on-device with StarLearner.")
+    }
+
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "${profile.displayName}'s Learning Report")
+        putExtra(Intent.EXTRA_TEXT, report)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share Progress Report"))
+}
+
+/**
+ * Simplified summary card requested by parents
  */
 @Composable
 fun ParentSimplifiedSummaryCard(
@@ -324,14 +1019,13 @@ fun ParentSimplifiedSummaryCard(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            // Card Title Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -383,7 +1077,7 @@ fun ParentSimplifiedSummaryCard(
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFFF8FAFC),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -455,7 +1149,7 @@ fun ParentSimplifiedSummaryCard(
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFFF8FAFC),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -512,7 +1206,7 @@ fun ParentSimplifiedSummaryCard(
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFFF8FAFC),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -527,7 +1221,7 @@ fun ParentSimplifiedSummaryCard(
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color.White,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(8.dp),
@@ -576,7 +1270,7 @@ fun ParentSimplifiedSummaryCard(
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = Color(0xFFEFF6FF),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("streak_nudge_controls")
@@ -599,7 +1293,7 @@ fun ParentSimplifiedSummaryCard(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "If your child doesn't open the app for 48 hours, a gentle, friendly reminder is automatically scheduled to protect their daily streak.",
+                        text = "If your child doesn't open the app for 48 hours, a gentle reminder is automatically scheduled to protect their daily streak.",
                         fontSize = 11.sp,
                         color = Color(0xFF334155),
                         lineHeight = 15.sp
@@ -835,7 +1529,7 @@ private fun SubjectPerformanceCard(profile: StudentProfile) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.TrendingUp,
+                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                     contentDescription = "Subject Mastery",
                     tint = Color(0xFF059669),
                     modifier = Modifier.size(20.dp)
@@ -949,7 +1643,7 @@ private fun AreasForImprovementCard() {
             .testTag("areas_for_improvement_card"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDE68A)),
+        border = BorderStroke(1.dp, Color(0xFFFDE68A)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(

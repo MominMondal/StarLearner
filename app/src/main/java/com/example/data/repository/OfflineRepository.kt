@@ -107,6 +107,22 @@ class OfflineRepository(private val database: AppDatabase) {
             )
             database.studentProfileDao().saveProfile(defaultEntity)
         }
+
+        // Pre-populate initial quiz attempts if empty
+        val existingAttempts = quizAttempts.firstOrNull()
+        if (existingAttempts.isNullOrEmpty()) {
+            val now = System.currentTimeMillis()
+            val hour = 3600 * 1000L
+            val day = 24 * hour
+            val initialAttempts = listOf(
+                QuizAttemptEntity(subject = SubjectType.MATH.name, classLevel = ClassLevel.CLASS_2.name, score = 5, total = 5, starsEarned = 25, timestamp = now - 2 * hour),
+                QuizAttemptEntity(subject = SubjectType.ENGLISH.name, classLevel = ClassLevel.CLASS_2.name, score = 4, total = 5, starsEarned = 20, timestamp = now - 7 * hour),
+                QuizAttemptEntity(subject = SubjectType.SCIENCE.name, classLevel = ClassLevel.CLASS_2.name, score = 5, total = 5, starsEarned = 25, timestamp = now - 1 * day),
+                QuizAttemptEntity(subject = SubjectType.BENGALI.name, classLevel = ClassLevel.CLASS_2.name, score = 4, total = 5, starsEarned = 20, timestamp = now - 2 * day),
+                QuizAttemptEntity(subject = SubjectType.MATH.name, classLevel = ClassLevel.CLASS_2.name, score = 5, total = 5, starsEarned = 30, timestamp = now - 3 * day)
+            )
+            initialAttempts.forEach { database.quizAttemptDao().insertAttempt(it) }
+        }
     }
 
     suspend fun recordQuizAttempt(

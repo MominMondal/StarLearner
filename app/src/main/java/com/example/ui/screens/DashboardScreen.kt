@@ -137,7 +137,8 @@ fun DashboardScreen(
                 StudentWelcomeHeader(
                     profile = profile,
                     avatarEmoji = currentAvatar.emoji,
-                    onAvatarClick = onOpenProfile
+                    onAvatarClick = onOpenProfile,
+                    onOpenParentDashboard = onOpenParentDashboard
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -170,7 +171,10 @@ fun DashboardScreen(
                 if (dailyMissions.isNotEmpty()) {
                     DailyMissionsCard(
                         missions = dailyMissions,
-                        onClaimReward = onClaimMission,
+                        onClaimReward = { mission ->
+                            showConfetti = true
+                            onClaimMission(mission)
+                        },
                         modifier = Modifier.testTag("daily_missions_section")
                     )
                     Spacer(modifier = Modifier.height(14.dp))
@@ -304,7 +308,8 @@ fun DashboardScreen(
 private fun StudentWelcomeHeader(
     profile: StudentProfile,
     avatarEmoji: String,
-    onAvatarClick: () -> Unit
+    onAvatarClick: () -> Unit,
+    onOpenParentDashboard: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -313,7 +318,7 @@ private fun StudentWelcomeHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Welcome back, 🌟",
                 style = MaterialTheme.typography.bodyMedium,
@@ -347,19 +352,48 @@ private fun StudentWelcomeHeader(
             }
         }
 
-        // Avatar Bubble
-        Surface(
-            modifier = Modifier
-                .size(54.dp)
-                .clip(CircleShape)
-                .clickable { onAvatarClick() }
-                .testTag("dashboard_avatar_button"),
-            shape = CircleShape,
-            color = Color(0xFFEFF6FF),
-            shadowElevation = 2.dp
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(text = avatarEmoji, fontSize = 32.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Quick Parent Portal button
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onOpenParentDashboard() }
+                    .testTag("dashboard_parent_portal_quick_button"),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFF1F5F9),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "👨‍👩‍👧", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Parents",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF334155)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Avatar Bubble
+            Surface(
+                modifier = Modifier
+                    .size(54.dp)
+                    .clip(CircleShape)
+                    .clickable { onAvatarClick() }
+                    .testTag("dashboard_avatar_button"),
+                shape = CircleShape,
+                color = Color(0xFFEFF6FF),
+                shadowElevation = 2.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(text = avatarEmoji, fontSize = 32.sp)
+                }
             }
         }
     }
@@ -1168,8 +1202,16 @@ private fun SubjectCardItem(
                         .background(subject.lightBgColor),
                     contentAlignment = Alignment.Center
                 ) {
+                    val displayEmoji = when (subject) {
+                        SubjectType.BENGALI -> when (selectedMedium) {
+                            CurriculumMedium.BANGLA -> "🇧🇩"
+                            CurriculumMedium.HINDI -> "🇮🇳"
+                            CurriculumMedium.CBSE_ENGLISH -> "📚"
+                        }
+                        else -> subject.iconEmoji
+                    }
                     Text(
-                        text = subject.iconEmoji,
+                        text = displayEmoji,
                         fontSize = 30.sp
                     )
                 }
@@ -1183,8 +1225,16 @@ private fun SubjectCardItem(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            val displayTitle = when (subject) {
+                                SubjectType.BENGALI -> when (selectedMedium) {
+                                    CurriculumMedium.BANGLA -> "Bengali (বাংলা)"
+                                    CurriculumMedium.HINDI -> "Hindi (हिंदी)"
+                                    CurriculumMedium.CBSE_ENGLISH -> "Regional Lang"
+                                }
+                                else -> subject.title
+                            }
                             Text(
-                                text = subject.title,
+                                text = displayTitle,
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                                 color = Color(0xFF0F172A)
                             )

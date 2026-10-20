@@ -757,36 +757,113 @@ object CurriculumRepository {
         return if (difficultyMatches.isNotEmpty()) difficultyMatches else pool
     }
 
-    fun getDefaultDailyMissions(): List<DailyMission> {
-        return listOf(
-            DailyMission(
-                id = "mission_quiz",
-                title = "Finish One Quiz",
-                description = "Complete any Math, English, or Science quiz today",
-                iconEmoji = "📝",
-                targetCount = 1,
-                currentCount = 0,
-                rewardStars = 25
-            ),
-            DailyMission(
-                id = "mission_review",
-                title = "Review Yesterday's Lesson",
-                description = "Revisit a completed lesson or practice questions",
-                iconEmoji = "📖",
-                targetCount = 1,
-                currentCount = 0,
-                rewardStars = 20
-            ),
-            DailyMission(
-                id = "mission_perfect",
-                title = "Earn 30+ Stars",
-                description = "Solve questions accurately to collect daily stars",
-                iconEmoji = "⭐",
-                targetCount = 30,
-                currentCount = 0,
-                rewardStars = 35
-            )
+    val allMissionTemplates = listOf(
+        DailyMission(
+            id = "mission_math_quiz",
+            title = "Math Challenger",
+            description = "Complete 1 Math quiz with focus on numbers & logic",
+            iconEmoji = "🔢",
+            targetCount = 1,
+            currentCount = 0,
+            rewardStars = 25,
+            missionType = com.example.data.model.MissionType.QUIZ_MATH
+        ),
+        DailyMission(
+            id = "mission_science_quiz",
+            title = "Science Explorer",
+            description = "Explore nature & senses in a Science quiz",
+            iconEmoji = "🌱",
+            targetCount = 1,
+            currentCount = 0,
+            rewardStars = 25,
+            missionType = com.example.data.model.MissionType.QUIZ_SCIENCE
+        ),
+        DailyMission(
+            id = "mission_english_quiz",
+            title = "Word Master",
+            description = "Practice phonics and vocabulary in an English quiz",
+            iconEmoji = "🔤",
+            targetCount = 1,
+            currentCount = 0,
+            rewardStars = 25,
+            missionType = com.example.data.model.MissionType.QUIZ_ENGLISH
+        ),
+        DailyMission(
+            id = "mission_lesson_hub",
+            title = "Lesson Adventurer",
+            description = "Complete 1 lesson in Bangla, Hindi, or CBSE medium",
+            iconEmoji = "📖",
+            targetCount = 1,
+            currentCount = 0,
+            rewardStars = 20,
+            missionType = com.example.data.model.MissionType.LESSON_COMPLETE
+        ),
+        DailyMission(
+            id = "mission_perfect_score",
+            title = "Ace a Quiz (100%)",
+            description = "Score a 100% flawless result on any quiz today",
+            iconEmoji = "🎯",
+            targetCount = 1,
+            currentCount = 0,
+            rewardStars = 40,
+            missionType = com.example.data.model.MissionType.QUIZ_PERFECT
+        ),
+        DailyMission(
+            id = "mission_star_collector",
+            title = "Star Collector",
+            description = "Earn 30+ shiny learning stars today",
+            iconEmoji = "⭐",
+            targetCount = 30,
+            currentCount = 0,
+            rewardStars = 35,
+            missionType = com.example.data.model.MissionType.EARN_STARS
+        ),
+        DailyMission(
+            id = "mission_photo_explorer",
+            title = "Visual Discovery",
+            description = "Review 3 interactive bilingual photo cards",
+            iconEmoji = "📸",
+            targetCount = 3,
+            currentCount = 0,
+            rewardStars = 20,
+            missionType = com.example.data.model.MissionType.PHOTO_FLASHCARDS
+        ),
+        DailyMission(
+            id = "mission_hard_quiz",
+            title = "Hard Mode Hero",
+            description = "Test your skills on a challenging Hard difficulty quiz",
+            iconEmoji = "🔥",
+            targetCount = 1,
+            currentCount = 0,
+            rewardStars = 35,
+            missionType = com.example.data.model.MissionType.QUIZ_HARD
+        ),
+        DailyMission(
+            id = "mission_any_quiz",
+            title = "Daily Quick Quiz",
+            description = "Answer questions and complete any quiz challenge",
+            iconEmoji = "📝",
+            targetCount = 1,
+            currentCount = 0,
+            rewardStars = 20,
+            missionType = com.example.data.model.MissionType.QUIZ_ANY
         )
+    )
+
+    fun generateDailyMissions(dateString: String = "", seedOffset: Int = 0): List<DailyMission> {
+        val todayStr = if (dateString.isNotEmpty()) {
+            dateString
+        } else {
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        }
+        val seed = todayStr.hashCode() + seedOffset * 31
+        val random = java.util.Random(seed.toLong())
+        val shuffled = allMissionTemplates.shuffled(random)
+        return shuffled.take(3).map { it.copy() }
+    }
+
+    fun getDefaultDailyMissions(): List<DailyMission> {
+        return generateDailyMissions()
     }
 
     fun getLeaderboard(currentProfile: StudentProfile): List<LeaderboardEntry> {
@@ -985,6 +1062,8 @@ object CurriculumRepository {
         val defaultEnglishScores = listOf(72, 75, 78, 85, 84, 90, 94)
         val defaultScienceScores = listOf(65, 70, 75, 82, 86, 90, 95)
         val defaultQuizzes = listOf(1, 2, 1, 3, 2, 2, 3)
+        val defaultLessonCompletionRates = listOf(65, 80, 75, 100, 85, 95, 100)
+        val defaultLessonsCounts = listOf(2, 4, 3, 5, 4, 4, 5)
 
         return daysOfWeek.mapIndexed { index, day ->
             val mathScore = defaultMathScores[index]
@@ -999,7 +1078,9 @@ object CurriculumRepository {
                 englishScorePercent = engScore,
                 scienceScorePercent = sciScore,
                 overallAveragePercent = avg,
-                totalQuizzesTaken = defaultQuizzes[index]
+                totalQuizzesTaken = defaultQuizzes[index],
+                lessonCompletionPercent = defaultLessonCompletionRates[index],
+                lessonsCompletedCount = defaultLessonsCounts[index]
             )
         }
     }

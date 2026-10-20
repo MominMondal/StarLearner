@@ -22,7 +22,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.ui.audio.LessonSpeechButton
+import com.example.ui.audio.LessonSpeechManager
+import com.example.ui.audio.rememberLessonSpeechManager
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -62,6 +66,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.model.ClassLevel
 import com.example.data.model.CurriculumMedium
 import com.example.service.SoundManagerService
+import com.example.ui.components.ConfettiCelebrationOverlay
 import com.example.ui.theme.BengaliColor
 import com.example.ui.theme.BengaliColorLight
 import com.example.ui.theme.PrimaryBlue
@@ -119,13 +124,18 @@ fun BengaliLessonsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BackHandler { onBack() }
+    val speechManager = rememberLessonSpeechManager()
+    BackHandler {
+        speechManager.stop()
+        onBack()
+    }
     val context = LocalContext.current
 
     var selectedMedium by remember(initialMedium) { mutableStateOf(initialMedium) }
     var selectedCategory by remember { mutableStateOf(MediumLessonCategory.ALPHABET_VOWELS) }
     var selectedLetterDetail by remember { mutableStateOf<GenericLetterCard?>(null) }
     var lessonCompletedNotice by remember { mutableStateOf(false) }
+    var showLessonConfetti by remember { mutableStateOf(false) }
 
     // === BANGLA MEDIUM DATASETS ===
     val banglaVowels = remember {
@@ -567,6 +577,7 @@ fun BengaliLessonsScreen(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable {
+                                    speechManager.stop()
                                     selectedMedium = medium
                                     onMediumChanged(medium)
                                     selectedCategory = MediumLessonCategory.ALPHABET_VOWELS
@@ -649,7 +660,10 @@ fun BengaliLessonsScreen(
                     currentTabs.forEach { (cat, label) ->
                         Tab(
                             selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
+                            onClick = {
+                                speechManager.stop()
+                                selectedCategory = cat
+                            },
                             text = { Text(label, fontWeight = FontWeight.Bold, fontSize = 11.sp) }
                         )
                     }
@@ -720,7 +734,60 @@ fun BengaliLessonsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Audio Read-Aloud Assistant Card for younger students
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("tts_reading_assistant_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, currentThemeColor.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(text = "🎧", fontSize = 22.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Audio Read-Aloud for Learners",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = "Tap 🔊 on any card to listen clearly at gentle reading pace!",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                        }
+
+                        if (speechManager.isSpeaking.value) {
+                            Button(
+                                onClick = { speechManager.stop() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Stop ⏹️", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
             }
 
             // === DYNAMIC CONTENT BASED ON SELECTED MEDIUM & CATEGORY ===
@@ -939,6 +1006,7 @@ fun BengaliLessonsScreen(
                             onClick = {
                                 SoundManagerService.playBadgeUnlock(context)
                                 lessonCompletedNotice = true
+                                showLessonConfetti = true
                                 onCompleteLesson(15)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = currentThemeColor),
@@ -1062,10 +1130,23 @@ fun BengaliLessonsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    LessonSpeechButton(
+                        textToSpeak = if (item.exampleSentence.isNotEmpty()) "${item.letter}. ${item.exampleWord}. ${item.exampleSentence}. English: ${item.englishMeaning}" else "${item.letter}. ${item.exampleWord}. English: ${item.englishMeaning}",
+                        speechManager = speechManager,
+                        medium = selectedMedium,
+                        itemId = "letter_dialog_${item.letter}",
+                        buttonLabel = "Listen Aloud 🔊",
+                        themeColor = currentThemeColor,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Button(
                         onClick = {
+                            speechManager.stop()
                             SoundManagerService.playCorrect(context)
                             selectedLetterDetail = null
                         },
@@ -1079,6 +1160,15 @@ fun BengaliLessonsScreen(
             }
         }
     }
+
+    ConfettiCelebrationOverlay(
+        isVisible = showLessonConfetti,
+        title = "LESSON COMPLETED! 🎓",
+        subtitle = "Superb job! You completed all the learning modules in ${selectedMedium.label}!",
+        bonusText = "+15 Learning Stars Awarded! ⭐",
+        badgeEmoji = "🎉",
+        onDismiss = { showLessonConfetti = false }
+    )
 }
 
 @Composable

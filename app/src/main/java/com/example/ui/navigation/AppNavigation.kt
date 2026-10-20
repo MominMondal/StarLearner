@@ -29,7 +29,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.PhotoLibrary
 import com.example.data.db.AppDatabase
 import com.example.data.model.ClassLevel
@@ -39,6 +39,7 @@ import com.example.data.model.DifficultyLevel
 import com.example.data.model.StudentProfile
 import com.example.data.model.SubjectType
 import com.example.data.repository.CurriculumRepository
+import com.example.data.repository.DailyMissionManager
 import com.example.data.repository.OfflineRepository
 import com.example.ui.components.ReusableQuizEngine
 import com.example.ui.screens.BengaliLessonsScreen
@@ -102,6 +103,7 @@ fun StarLearnerApp(
     }
 
     val weeklyLogs by offlineRepo.weeklyLogs.collectAsState(initial = emptyList())
+    val quizAttempts by offlineRepo.quizAttempts.collectAsState(initial = emptyList())
 
     var currentScreen by remember { mutableStateOf(AppScreen.DASHBOARD) }
     var selectedClassLevel by remember { mutableStateOf(ClassLevel.CLASS_2) }
@@ -109,9 +111,9 @@ fun StarLearnerApp(
     var activeSubjectForQuiz by remember { mutableStateOf(SubjectType.MATH) }
     var selectedQuizDifficulty by remember { mutableStateOf(DifficultyLevel.EASY) }
 
-    // Daily missions system: 3 small achievable tasks
+    // Daily missions system: 3 randomized achievable learning tasks each day
     var dailyMissions by remember {
-        mutableStateOf(CurriculumRepository.getDefaultDailyMissions())
+        mutableStateOf(DailyMissionManager.loadDailyMissions(context))
     }
 
     Scaffold(
@@ -139,7 +141,7 @@ fun StarLearnerApp(
                     NavigationBarItem(
                         selected = currentScreen == AppScreen.BENGALI_LESSONS,
                         onClick = { currentScreen = AppScreen.BENGALI_LESSONS },
-                        icon = { Icon(Icons.Default.MenuBook, contentDescription = "Lessons") },
+                        icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "Lessons") },
                         label = { Text("Lessons 📖", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryBlue,
@@ -216,9 +218,7 @@ fun StarLearnerApp(
                     dailyMissions = dailyMissions,
                     onClaimMission = { claimedMission ->
                         if (claimedMission.isCompleted && !claimedMission.isClaimed) {
-                            dailyMissions = dailyMissions.map {
-                                if (it.id == claimedMission.id) it.copy(isClaimed = true) else it
-                            }
+                            dailyMissions = DailyMissionManager.claimMission(context, dailyMissions, claimedMission.id)
                             val updatedProfile = studentProfile.copy(
                                 totalStars = studentProfile.totalStars + claimedMission.rewardStars
                             )
@@ -321,15 +321,16 @@ fun StarLearnerApp(
                             com.example.service.SoundManagerService.playCorrect(context)
                         }
 
-                        // Update daily missions progress (e.g. Finish quiz + Earn stars)
-                        dailyMissions = dailyMissions.map { mission ->
-                            when (mission.id) {
-                                "mission_quiz" -> mission.copy(currentCount = (mission.currentCount + 1).coerceAtMost(mission.targetCount))
-                                "mission_review" -> mission.copy(currentCount = (mission.currentCount + 1).coerceAtMost(mission.targetCount))
-                                "mission_perfect" -> mission.copy(currentCount = (mission.currentCount + starsEarned).coerceAtMost(mission.targetCount))
-                                else -> mission
-                            }
-                        }
+                        // Update daily missions progress (matching randomized tasks: quiz type, difficulty, perfect score, stars)
+                        val isQuizPerfect = (correctCount == totalCount && totalCount > 0)
+                        dailyMissions = DailyMissionManager.updateMissionsOnQuizCompleted(
+                            context = context,
+                            currentMissions = dailyMissions,
+                            subject = activeSubjectForQuiz,
+                            difficulty = selectedQuizDifficulty,
+                            isPerfectScore = isQuizPerfect,
+                            starsEarned = starsEarned
+                        )
 
                         // Save attempt and progress to Room Database for offline support
                         coroutineScope.launch {
@@ -398,9 +399,21 @@ fun StarLearnerApp(
                             bengaliStars = studentProfile.bengaliStars + stars
                         )
                         studentProfile = updatedProfile
+                        dailyMissions = DailyMissionManager.updateMissionsOnPhotoReviewed(
+                            context = context,
+                            currentMissions = dailyMissions,
+                            starsEarned = stars
+                        )
                         coroutineScope.launch {
                             offlineRepo.saveStudentProfile(updatedProfile)
                         }
+                    },
+                    onCardExplored = {
+                        dailyMissions = DailyMissionManager.updateMissionsOnPhotoReviewed(
+                            context = context,
+                            currentMissions = dailyMissions,
+                            starsEarned = 0
+                        )
                     },
                     onBack = { currentScreen = AppScreen.DASHBOARD },
                     modifier = Modifier.padding(innerPadding)
@@ -439,6 +452,11 @@ fun StarLearnerApp(
                             completedLessons = studentProfile.completedLessons + 1
                         )
                         studentProfile = updatedProfile
+                        dailyMissions = DailyMissionManager.updateMissionsOnLessonCompleted(
+                            context = context,
+                            currentMissions = dailyMissions,
+                            starsEarned = stars
+                        )
                         coroutineScope.launch {
                             offlineRepo.saveStudentProfile(updatedProfile)
                         }
@@ -452,6 +470,7 @@ fun StarLearnerApp(
                 ParentDashboardScreen(
                     profile = studentProfile,
                     weeklyLogs = weeklyLogs,
+                    quizAttempts = quizAttempts,
                     onBack = { currentScreen = AppScreen.DASHBOARD },
                     modifier = Modifier.padding(innerPadding)
                 )

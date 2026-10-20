@@ -90,6 +90,18 @@ enum class DifficultyLevel(val label: String, val starsMultiplier: Float, val ic
     HARD("Hard", 2.0f, "🔴", "Tricky & higher star bonus!")
 }
 
+enum class MissionType {
+    QUIZ_ANY,
+    QUIZ_MATH,
+    QUIZ_ENGLISH,
+    QUIZ_SCIENCE,
+    QUIZ_PERFECT,
+    QUIZ_HARD,
+    LESSON_COMPLETE,
+    PHOTO_FLASHCARDS,
+    EARN_STARS
+}
+
 data class DailyMission(
     val id: String,
     val title: String,
@@ -98,9 +110,11 @@ data class DailyMission(
     val targetCount: Int,
     val currentCount: Int,
     val rewardStars: Int,
-    val isClaimed: Boolean = false
+    val isClaimed: Boolean = false,
+    val missionType: MissionType = MissionType.QUIZ_ANY
 ) {
     val isCompleted: Boolean get() = currentCount >= targetCount
+    val progressFraction: Float get() = if (targetCount > 0) (currentCount.toFloat() / targetCount).coerceIn(0f, 1f) else 1f
 }
 
 data class QuizQuestion(
@@ -204,7 +218,9 @@ data class QuizPerformanceDay(
     val englishScorePercent: Int,
     val scienceScorePercent: Int,
     val overallAveragePercent: Int,
-    val totalQuizzesTaken: Int
+    val totalQuizzesTaken: Int,
+    val lessonCompletionPercent: Int = 80,
+    val lessonsCompletedCount: Int = 3
 )
 
 data class SubjectPerformanceMetric(

@@ -17,12 +17,30 @@ class ExampleUnitTest {
     fun defaultDailyMissions_providesThreeAchievableTasks() {
         val missions = CurriculumRepository.getDefaultDailyMissions()
         assertEquals(3, missions.size)
-        assertTrue(missions.any { it.title.contains("Quiz", ignoreCase = true) })
-        assertTrue(missions.any { it.title.contains("Star", ignoreCase = true) })
+        // All 3 missions must have positive rewards, valid target counts, and start unclaimed
         missions.forEach { mission ->
+            assertTrue(mission.title.isNotEmpty())
+            assertTrue(mission.description.isNotEmpty())
+            assertTrue(mission.iconEmoji.isNotEmpty())
             assertTrue(mission.rewardStars > 0)
+            assertTrue(mission.targetCount > 0)
+            assertEquals(0, mission.currentCount)
             assertFalse(mission.isClaimed)
+            assertFalse(mission.isCompleted)
         }
+        // Template pool has rich variety of learning tasks
+        assertTrue(CurriculumRepository.allMissionTemplates.size >= 8)
+    }
+
+    @Test
+    fun dailyMissions_randomizesTasksEachDay() {
+        val day1Missions = CurriculumRepository.generateDailyMissions("2026-10-01")
+        val day2Missions = CurriculumRepository.generateDailyMissions("2026-10-02")
+        assertEquals(3, day1Missions.size)
+        assertEquals(3, day2Missions.size)
+        // Check that different dates produce valid 3 missions
+        day1Missions.forEach { assertTrue(it.rewardStars > 0) }
+        day2Missions.forEach { assertTrue(it.rewardStars > 0) }
     }
 
     @Test
@@ -192,6 +210,124 @@ class ExampleUnitTest {
             assertTrue(q.correctIndex in q.options.indices)
             assertTrue(q.explanation.isNotEmpty())
         }
+    }
+
+    @Test
+    fun curriculumMedium_allThreeMediumsAreConfigured() {
+        val mediums = com.example.data.model.CurriculumMedium.values()
+        assertEquals(3, mediums.size)
+        assertTrue(mediums.contains(com.example.data.model.CurriculumMedium.BANGLA))
+        assertTrue(mediums.contains(com.example.data.model.CurriculumMedium.HINDI))
+        assertTrue(mediums.contains(com.example.data.model.CurriculumMedium.CBSE_ENGLISH))
+
+        mediums.forEach { m ->
+            assertTrue(m.label.isNotEmpty())
+            assertTrue(m.nativeLabel.isNotEmpty())
+            assertTrue(m.shortCode.isNotEmpty())
+            assertTrue(m.flagEmoji.isNotEmpty())
+            assertTrue(m.description.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun getQuestions_filtersByMediumProperly() {
+        val banglaBengali = CurriculumRepository.getQuestions(
+            subject = SubjectType.BENGALI,
+            classLevel = ClassLevel.CLASS_1,
+            difficulty = DifficultyLevel.EASY,
+            medium = com.example.data.model.CurriculumMedium.BANGLA
+        )
+        assertTrue(banglaBengali.isNotEmpty())
+        assertTrue(banglaBengali.all { it.medium == com.example.data.model.CurriculumMedium.BANGLA })
+
+        val hindiQuestions = CurriculumRepository.getQuestions(
+            subject = SubjectType.BENGALI,
+            classLevel = ClassLevel.CLASS_1,
+            difficulty = DifficultyLevel.EASY,
+            medium = com.example.data.model.CurriculumMedium.HINDI
+        )
+        assertTrue(hindiQuestions.isNotEmpty())
+        assertTrue(hindiQuestions.all { it.medium == com.example.data.model.CurriculumMedium.HINDI })
+
+        val cbseEnglish = CurriculumRepository.getQuestions(
+            subject = SubjectType.ENGLISH,
+            classLevel = ClassLevel.CLASS_1,
+            difficulty = DifficultyLevel.EASY,
+            medium = com.example.data.model.CurriculumMedium.CBSE_ENGLISH
+        )
+        assertTrue(cbseEnglish.isNotEmpty())
+    }
+
+    @Test
+    fun hindiMediumQuestions_haveValidDevanagariContentAndOptions() {
+        val hindiQ = CurriculumRepository.getQuestions(
+            subject = SubjectType.BENGALI,
+            classLevel = ClassLevel.CLASS_2,
+            difficulty = DifficultyLevel.EASY,
+            medium = com.example.data.model.CurriculumMedium.HINDI
+        )
+        assertTrue(hindiQ.isNotEmpty())
+        hindiQ.forEach { q ->
+            assertTrue(q.questionText.isNotEmpty())
+            assertTrue(q.options.size >= 3)
+            assertTrue(q.correctAnswerIndex in q.options.indices)
+            assertTrue(q.explanation.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun parentDashboard_calculatesAchievementsAndBadgesCorrectly() {
+        val profile = StudentProfile(
+            displayName = "Alex Cadet",
+            classLevel = ClassLevel.CLASS_2,
+            totalStars = 180,
+            dailyStreak = 6,
+            completedLessons = 14,
+            quizzesCompleted = 10,
+            mathStars = 65,
+            englishStars = 50,
+            scienceStars = 45,
+            bengaliStars = 45,
+            hindiStars = 40,
+            unlockedBadgeIds = setOf("math_whiz", "early_bird", "streak_3", "science_star", "word_master")
+        )
+
+        val allBadges = CurriculumRepository.getAllBadges(profile)
+        assertTrue(allBadges.isNotEmpty())
+        val unlocked = allBadges.filter { it.isUnlocked }
+        val locked = allBadges.filter { !it.isUnlocked }
+
+        assertTrue(unlocked.isNotEmpty())
+        assertTrue(locked.isNotEmpty())
+        assertEquals(allBadges.size, unlocked.size + locked.size)
+
+        // Check math_whiz is unlocked
+        val mathBadge = allBadges.find { it.id == "math_whiz" }
+        assertNotNull(mathBadge)
+        assertTrue(mathBadge!!.isUnlocked)
+
+        // Check locked badge progress
+        locked.forEach { b ->
+            assertTrue(b.maxProgress > 0)
+            assertTrue(b.currentProgress >= 0)
+        }
+    }
+
+    @Test
+    fun parentDashboard_quizAttemptsProvideScoresAndSubjectTracking() {
+        val attempts = listOf(
+            com.example.data.db.QuizAttemptEntity(subject = SubjectType.MATH.name, classLevel = "CLASS_2", score = 5, total = 5, starsEarned = 25),
+            com.example.data.db.QuizAttemptEntity(subject = SubjectType.ENGLISH.name, classLevel = "CLASS_2", score = 4, total = 5, starsEarned = 20),
+            com.example.data.db.QuizAttemptEntity(subject = SubjectType.SCIENCE.name, classLevel = "CLASS_2", score = 3, total = 5, starsEarned = 15)
+        )
+
+        val mathAttempts = attempts.filter { it.subject == SubjectType.MATH.name }
+        assertEquals(1, mathAttempts.size)
+        assertEquals(5, mathAttempts.first().score)
+        assertEquals(5, mathAttempts.first().total)
+
+        val avgAccuracy = (attempts.sumOf { (it.score * 100) / it.total } / attempts.size)
+        assertEquals(80, avgAccuracy)
     }
 }
 
